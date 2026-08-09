@@ -1,0 +1,9 @@
+.agent-card.failed {
+  border-color: #ef5c70;
+  box-shadow: 0 0 20px #ef5c7044;
+}
+
+.agent-card.failed .agent-status {
+  background: #512332;
+  color: #ff9aaa;
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Code Writer avatar">
+  <rect width="96" height="96" rx="24" fill="#111827"/>
+  <rect x="24" y="22" width="48" height="34" rx="10" fill="#1f2937" stroke="#6366f1" stroke-width="2"/>
+  <rect x="32" y="30" width="32" height="8" rx="4" fill="#818cf8"/>
+  <rect x="32" y="44" width="20" height="6" rx="3" fill="#c7d2fe"/>
+  <circle cx="68" cy="58" r="10" fill="#10b981"/>
+</svg>

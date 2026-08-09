@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Test Runner avatar">
+  <rect width="96" height="96" rx="24" fill="#111827"/>
+  <circle cx="48" cy="44" r="20" fill="#1f2937" stroke="#ef4444" stroke-width="2"/>
+  <path d="M40 44l6 6 12-12" stroke="#ef4444" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M26 24l10 10" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+</svg>

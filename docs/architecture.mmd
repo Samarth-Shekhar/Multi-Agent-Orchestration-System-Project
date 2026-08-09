@@ -1,0 +1,28 @@
+graph TD
+    A[Issue Loader] --> B[Code Reader]
+    B --> C[Planner]
+    C -->|simple| E[Code Writer]
+    C -->|complex| D[Research Agent]
+    D --> E
+    E --> F[Test Writer]
+    F --> G[Test Runner]
+    G -->|pass| H[Reviewer]
+    G -->|fail & retries left| I[Repair Agent]
+    G -->|fail & max retries| END_FAIL[Safe Failure END]
+    I --> G
+    H -->|approved| J[PR Opener]
+    H -->|changes requested| I
+    J --> END_OK[Success END]
+
+    style A fill:#4A9EFF,color:#fff
+    style B fill:#4A9EFF,color:#fff
+    style C fill:#FF9F43,color:#fff
+    style D fill:#A55EEA,color:#fff
+    style E fill:#26DE81,color:#fff
+    style F fill:#26DE81,color:#fff
+    style G fill:#FD9644,color:#fff
+    style H fill:#FC5C65,color:#fff
+    style I fill:#FC5C65,color:#fff
+    style J fill:#20BF6B,color:#fff
+    style END_OK fill:#20BF6B,color:#fff
+    style END_FAIL fill:#EB3B5A,color:#fff

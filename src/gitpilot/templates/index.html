@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="GitPilot — autonomous GitHub issue to pull request orchestration">
+  <title>GitPilot — New Workflow Run</title>
+  <link rel="icon" href="/static/images/agents/issue_loader.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/diagnostics.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-bot">◉</span><strong>GitPilot</strong><span class="version">v0.1.0</span></div>
+    <nav aria-label="Main navigation">
+      <button class="nav-item active"><span>◆</span>Dashboard</button>
+      <button class="nav-item"><span>⬡</span>Runs</button>
+      <button class="nav-item"><span>▣</span>Repositories</button>
+      <button class="nav-item"><span>⚙</span>Settings</button>
+      <button class="nav-item"><span>▤</span>Docs</button>
+    </nav>
+
+    <section class="side-card about-card">
+      <h3>What is GitPilot?</h3>
+      <p>GitPilot is a multi-agent AI system that takes a GitHub issue, understands the codebase, implements a fix, writes tests, validates the changes, and opens a pull request.</p>
+      <ul>
+        <li><i class="mint">⌁</i>Stateful multi-agent orchestration</li>
+        <li><i class="violet">◉</i>Smart code understanding</li>
+        <li><i class="purple">◈</i>Automated testing &amp; review</li>
+        <li><i class="green">✓</i>Safe execution in sandbox</li>
+        <li><i class="pink">⊙</i>Pull request automation</li>
+      </ul>
+    </section>
+
+    <section class="side-card stats-card">
+      <h3>Project Stats</h3>
+      <div><span>⌁ Total Runs</span><b>24</b></div>
+      <div><span>◷ Success Rate</span><b>91.7%</b></div>
+      <div><span>◷ Avg. Duration</span><b>4m 32s</b></div>
+      <div><span>⚑ PRs Created</span><b>12</b></div>
+    </section>
+
+    <div class="profile"><span class="avatar">SS</span><div><b>Samarth Shekhar</b><small>Developer</small></div><span>⌄</span></div>
+  </aside>
+
+  <main>
+    <header class="run-header">
+      <div class="title-row">
+        <div><h1><span>ϟ</span> New Workflow Run</h1><p>Start a new AI-powered workflow to solve GitHub issues</p></div>
+        <div class="header-tools"><button id="themeToggle" class="theme-btn">☾ <span>Dark</span>⌄</button><button class="bell" aria-label="Notifications">♧<i>3</i></button></div>
+      </div>
+      <form id="runForm" class="run-form">
+        <label>Repository URL<input id="repoUrl" name="repository_url" type="url" placeholder="https://github.com/owner/repository" autocomplete="off" required></label>
+        <label class="issue-field">Issue Number<input id="issueNumber" name="issue_number" type="number" min="1" placeholder="1" required></label>
+        <label class="dry-label">Dry Run<span class="switch-row"><input id="dryRun" type="checkbox" checked><i></i><b>Enabled</b></span></label>
+        <button id="runBtn" class="run-btn" type="submit">▶ <span>Run Workflow</span></button>
+        <div id="formError" class="form-error" role="alert"></div>
+      </form>
+    </header>
+
+    <section class="pipeline-section">
+      <div class="section-head"><div><h2><span>◉</span> Agent Pipeline</h2><p>Visualize the progress of each AI agent in real-time</p></div><div class="pipeline-controls"><label>Auto-scroll <input type="checkbox" checked></label><button id="expandAll">⛶ &nbsp; Expand All</button></div></div>
+      <div id="pipelineGraph" class="pipeline"></div>
+      <div class="overall"><div class="progress-track"><i id="progressBar"></i></div><span>Overall Progress: <b id="progressValueSmall">0%</b></span></div>
+    </section>
+
+    <section class="work-grid">
+      <article class="panel activity-panel">
+        <div class="panel-title"><h3><span>〽</span> Current Activity</h3><em>● LIVE</em></div>
+        <div class="activity-main"><div><h4 id="currentStage">Ready to start a workflow</h4><p id="activityDescription">Submit a GitHub issue to begin the autonomous pipeline.</p><ul><li>▣ Environment: Python 3.12</li><li>◉ Command: pytest -v</li><li>◷ Progress: <span id="progressValue">0/9 agents completed</span></li><li>◷ Time Elapsed: <span id="activityElapsedValue">00:00:00</span></li></ul></div><img id="activityAvatar" src="/static/images/agents/test_runner.svg" alt="Active GitPilot agent"></div>
+      </article>
+
+      <article class="panel output-panel"><div class="panel-title"><h3><span>⌘</span> Agent Output</h3></div><pre id="agentOutput">GitPilot is ready.
+Waiting for a new workflow run...</pre></article>
+
+      <article class="panel summary-panel"><div class="panel-title"><h3><span>◉</span> Run Summary</h3></div><dl><dt>Run ID</dt><dd id="summaryRunId">—</dd><dt>Started At</dt><dd id="summaryStartedAt">—</dd><dt>Repository</dt><dd id="summaryRepo">—</dd><dt>Issue</dt><dd id="summaryIssue">—</dd><dt>Branch</dt><dd id="summaryBranch">—</dd><dt>Status</dt><dd id="summaryStatus"><span class="status-dot"></span> Ready</dd></dl></article>
+
+      <article class="panel mini-panel"><div class="panel-title"><h3><span>✣</span> What Has Been Done</h3></div><ul id="doneList" class="done-list"><li>✓ Waiting for workflow input</li><li>✓ Safe sandbox is ready</li><li>✓ Agent pipeline is initialized</li></ul></article>
+      <article class="panel mini-panel"><div class="panel-title"><h3><span>⚄</span> What's Next</h3></div><ol id="nextList"><li>Load GitHub issue details</li><li>Analyze relevant code</li><li>Create implementation plan</li><li>Implement and validate fix</li><li>Create pull request</li></ol></article>
+      <article class="panel mini-panel improvements"><div class="panel-title"><h3><span>≋</span> Potential Improvements</h3></div><ul><li>Add edge-case tests for changed behavior</li><li>Improve error message clarity</li><li>Add input validation for invalid values</li><li>Update documentation</li><li>Consider type hints</li></ul></article>
+      <article class="panel mini-panel tips"><div class="panel-title"><h3><span>✣</span> Tips &amp; Insights</h3></div><p>Validate inputs at system boundaries and keep every generated patch focused.</p><div><b>▣ &nbsp; Best Practice</b><span>Keep dry run enabled while evaluating an unfamiliar repository.</span></div></article>
+    </section>
+
+    <section id="details" class="details-grid" hidden>
+      <article><h3>Issue</h3><div id="issueContent"></div></article><article><h3>Plan</h3><div id="planContent"></div></article><article><h3>Patch</h3><pre id="diffContent"></pre></article><article><h3>Tests</h3><pre id="testContent"></pre></article><article><h3>Review</h3><div id="reviewContent"></div></article><article><h3>Delivery</h3><div id="prContent"></div></article>
+    </section>
+  </main>
+</div>
+
+<dialog id="agentDrawer" class="agent-dialog"><button data-close="drawer">×</button><div id="drawerContent"></div></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="/static/dashboard.js"></script>
+<script src="/static/runtime-diagnostics.js"></script>
+</body>
+</html>
