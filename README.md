@@ -30,8 +30,8 @@ GitPilot features a **100% free, zero-cost DEMO MODE** that runs locally without
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/SamarthShekhar/gitpilot-multi-agent.git
-cd gitpilot-multi-agent
+git clone https://github.com/Samarth-Shekhar/Multi-Agent-Orchestration-System-Project.git
+cd Multi-Agent-Orchestration-System-Project
 
 # 2. Copy environment template
 cp .env.example .env
@@ -48,6 +48,20 @@ python -m gitpilot.main
 # Open http://localhost:8000 in your browser
 ```
 
+### Dashboard capabilities
+
+- Live status and output for all nine visible agents.
+- Persistent **Runs** history that survives application restarts.
+- Per-run details covering the project, issue, root cause, plan, changed files,
+  tests, review, branch, pull request, and complete agent work log.
+- **Repositories** view aggregating past issues and changes by project.
+- Built-in **Docs** and safe runtime **Settings** views.
+- Real statistics calculated from persisted runs instead of demo values.
+
+Run history is stored locally in `.gitpilot-data/runs.json`. Model responses,
+portable tools, and dependency snapshots are stored under `.tools/`; both paths
+are ignored by Git.
+
 ---
 
 ## 3. Architecture
@@ -56,8 +70,7 @@ python -m gitpilot.main
 graph TD
     A[Issue Loader] --> B[Code Reader]
     B --> C[Planner]
-    C -->|simple| E[Code Writer]
-    C -->|complex| D[Research Agent]
+    C --> D[Research Agent]
     D --> E
     E --> F[Test Writer]
     F --> G[Test Runner]
@@ -113,11 +126,11 @@ graph.set_entry_point("issue_loader")
 graph.add_edge("issue_loader", "code_reader")
 graph.add_edge("code_reader", "planner")
 
-# Conditional Complexity Router
+# Research runs for every plan; fatal planner failures still route to END.
 graph.add_conditional_edges(
     "planner",
     route_by_complexity,
-    {"research_agent": "research_agent", "code_writer": "code_writer"},
+    {"research_agent": "research_agent", "__end__": END},
 )
 
 # Conditional Test Runner Loop
@@ -137,7 +150,7 @@ graph.add_conditional_edges(
 | **Issue Loader** | `issue_number`, `repository_url` | Structured `Issue` & `default_branch` | Scans for prompt injection; flags errors |
 | **Code Reader** | `repo_path`, `issue` | Compact `code_context`, `file_tree` | Heuristic file filtering; ignores binaries/large files |
 | **Planner** | `issue`, `code_context` | Validated `Plan` schema | Pydantic validation; defaults to degraded plan |
-| **Research Agent** | `plan`, `code_context` | Detailed `research_notes` | Executed only for `complex` routing branch |
+| **Research Agent** | `plan`, `code_context` | Detailed `research_notes` | Runs for every plan so the visible pipeline is complete |
 | **Code Writer** | `plan`, `code_context`, `research` | Code patch & `changed_files` | Validates file paths via security boundary |
 | **Test Writer** | `plan`, `patch` | Executable `tests` code | Follows existing repo test framework (pytest/npm) |
 | **Test Runner** | `repo_path`, `tests` | `TestResults` (stdout, stderr, pass) | Docker sandbox isolation with CPU/memory caps |
@@ -228,8 +241,8 @@ Measured on local zero-cost fixture run (`examples/demo_repo/`):
 |---|---:|
 | **Demo Workflow Duration** | 1,460.09 ms (~1.46s) |
 | **State Transitions** | 9 graph nodes |
-| **Pytest Suite Pass Rate** | 100% (33/33 tests passing) |
-| **Fixture Repository Test Pass Rate** | 100% (5/5 tests passing) |
+| **Automated Test Coverage** | 49 pytest tests collected across unit and integration suites |
+| **Validated JavaScript Repository** | 225 Jest tests and 129 snapshots passing |
 | **Relevant Files Retrieved** | 3 files (`calculator.py`, `test_calculator.py`, `pyproject.toml`) |
 | **Files Modified** | 1 file (`calculator.py`) |
 | **Repair Attempts (Demo)** | 1 attempt |
@@ -254,6 +267,12 @@ curl -X POST http://localhost:8000/api/v1/runs \
 
 # Get run status
 curl http://localhost:8000/api/v1/runs/{run_id}
+
+# List persisted run history
+curl http://localhost:8000/api/v1/runs?limit=50
+
+# Aggregate past work by repository
+curl http://localhost:8000/api/v1/repositories
 ```
 
 ---
@@ -264,6 +283,7 @@ curl http://localhost:8000/api/v1/runs/{run_id}
 |---|---|---|
 | `LLM_PROVIDER` | `mock` | `mock` \| `ollama` \| `openai` |
 | `LLM_MODEL` | `mock-model` | Target model name |
+| `LLM_TIMEOUT_SECONDS` | `600` | Maximum time allowed for one model request |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama local server URL |
 | `OPENAI_API_KEY` | `""` | API key for OpenAI-compatible provider |
 | `GITHUB_TOKEN` | `""` | GitHub PAT for repository write access |
@@ -277,13 +297,22 @@ curl http://localhost:8000/api/v1/runs/{run_id}
 To use a local Ollama LLM:
 ```bash
 # 1. Start Ollama locally
-ollama run llama3.2
+ollama pull qwen2.5-coder:1.5b
 
 # 2. Update .env
 LLM_PROVIDER=ollama
-LLM_MODEL=llama3.2
+LLM_MODEL=qwen2.5-coder:1.5b
 OLLAMA_BASE_URL=http://localhost:11434
 ```
+
+The 1.5B model is recommended for CPU-only machines. GitPilot caches identical
+Ollama prompts under `.tools/llm-cache`, so repeated runs against unchanged
+repository context are much faster. The first uncached run still depends on
+your CPU and can take several minutes.
+
+For JavaScript repositories, GitPilot detects npm/Jest, installs missing
+dependencies with lifecycle scripts disabled, caches them by manifest, and
+runs Jest in-band for sandbox compatibility. Python repositories use pytest.
 
 ---
 
@@ -291,11 +320,16 @@ OLLAMA_BASE_URL=http://localhost:11434
 
 To enable real Pull Request creation:
 ```bash
-# 1. Generate GitHub Personal Access Token with repo scope
+# 1. Generate a GitHub token with Contents and Pull requests write permissions
 # 2. Set in .env
 GITHUB_TOKEN=ghp_your_token_here
 DRY_RUN=false
 ```
+
+`DRY_RUN=true` only simulates delivery; no remote branch or PR is created.
+With dry run disabled, GitPilot creates a branch, commits each generated file
+through the GitHub Contents API, and then opens the pull request. Generated
+changes should always receive human review before merging.
 
 ---
 
