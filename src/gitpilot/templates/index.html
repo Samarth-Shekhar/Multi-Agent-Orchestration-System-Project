@@ -17,11 +17,11 @@
   <aside class="sidebar">
     <div class="brand"><span class="brand-bot">◉</span><strong>GitPilot</strong><span class="version">v0.1.0</span></div>
     <nav aria-label="Main navigation">
-      <button class="nav-item active"><span>◆</span>Dashboard</button>
-      <button class="nav-item"><span>⬡</span>Runs</button>
-      <button class="nav-item"><span>▣</span>Repositories</button>
-      <button class="nav-item"><span>⚙</span>Settings</button>
-      <button class="nav-item"><span>▤</span>Docs</button>
+      <button class="nav-item active" data-view="dashboard"><span>◆</span>Dashboard</button>
+      <button class="nav-item" data-view="runs"><span>⬡</span>Runs</button>
+      <button class="nav-item" data-view="repositories"><span>▣</span>Repositories</button>
+      <button class="nav-item" data-view="settings"><span>⚙</span>Settings</button>
+      <button class="nav-item" data-view="docs"><span>▤</span>Docs</button>
     </nav>
 
     <section class="side-card about-card">
@@ -38,10 +38,10 @@
 
     <section class="side-card stats-card">
       <h3>Project Stats</h3>
-      <div><span>⌁ Total Runs</span><b>24</b></div>
-      <div><span>◷ Success Rate</span><b>91.7%</b></div>
-      <div><span>◷ Avg. Duration</span><b>4m 32s</b></div>
-      <div><span>⚑ PRs Created</span><b>12</b></div>
+      <div><span>⌁ Total Runs</span><b id="statRuns">0</b></div>
+      <div><span>◷ Success Rate</span><b id="statSuccess">0%</b></div>
+      <div><span>◷ Avg. Duration</span><b id="statDuration">0s</b></div>
+      <div><span>⚑ PRs Created</span><b id="statPrs">0</b></div>
     </section>
 
     <div class="profile"><span class="avatar">SS</span><div><b>Samarth Shekhar</b><small>Developer</small></div><span>⌄</span></div>
@@ -62,13 +62,15 @@
       </form>
     </header>
 
-    <section class="pipeline-section">
+    <section id="historyView" class="history-view" hidden></section>
+
+    <section class="pipeline-section dashboard-view">
       <div class="section-head"><div><h2><span>◉</span> Agent Pipeline</h2><p>Visualize the progress of each AI agent in real-time</p></div><div class="pipeline-controls"><label>Auto-scroll <input type="checkbox" checked></label><button id="expandAll">⛶ &nbsp; Expand All</button></div></div>
       <div id="pipelineGraph" class="pipeline"></div>
       <div class="overall"><div class="progress-track"><i id="progressBar"></i></div><span>Overall Progress: <b id="progressValueSmall">0%</b></span></div>
     </section>
 
-    <section class="work-grid">
+    <section class="work-grid dashboard-view">
       <article class="panel activity-panel">
         <div class="panel-title"><h3><span>〽</span> Current Activity</h3><em>● LIVE</em></div>
         <div class="activity-main"><div><h4 id="currentStage">Ready to start a workflow</h4><p id="activityDescription">Submit a GitHub issue to begin the autonomous pipeline.</p><ul><li>▣ Environment: Python 3.12</li><li>◉ Command: pytest -v</li><li>◷ Progress: <span id="progressValue">0/9 agents completed</span></li><li>◷ Time Elapsed: <span id="activityElapsedValue">00:00:00</span></li></ul></div><img id="activityAvatar" src="/static/images/agents/test_runner.svg" alt="Active GitPilot agent"></div>
@@ -85,7 +87,7 @@ Waiting for a new workflow run...</pre></article>
       <article class="panel mini-panel tips"><div class="panel-title"><h3><span>✣</span> Tips &amp; Insights</h3></div><p>Validate inputs at system boundaries and keep every generated patch focused.</p><div><b>▣ &nbsp; Best Practice</b><span>Keep dry run enabled while evaluating an unfamiliar repository.</span></div></article>
     </section>
 
-    <section id="details" class="details-grid" hidden>
+    <section id="details" class="details-grid dashboard-view" hidden>
       <article><h3>Issue</h3><div id="issueContent"></div></article><article><h3>Plan</h3><div id="planContent"></div></article><article><h3>Patch</h3><pre id="diffContent"></pre></article><article><h3>Tests</h3><pre id="testContent"></pre></article><article><h3>Review</h3><div id="reviewContent"></div></article><article><h3>Delivery</h3><div id="prContent"></div></article>
     </section>
   </main>

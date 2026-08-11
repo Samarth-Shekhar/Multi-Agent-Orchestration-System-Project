@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
+from gitpilot.security import is_path_safe
 from gitpilot.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -49,6 +51,23 @@ def pr_opener(state: AgentState, *, github_client, dry_run: bool = True, **kwarg
 
         sha = github_client.get_default_branch_sha(owner, repo, default_branch)
         github_client.create_branch(owner, repo, branch_name, sha)
+        repo_path = state.get("repo_path", "")
+        committed_files = []
+        for relative_path in changed_files:
+            local_file = Path(repo_path) / relative_path
+            if not local_file.is_file() or not is_path_safe(str(local_file), repo_path):
+                continue
+            github_client.upsert_file(
+                owner,
+                repo,
+                relative_path.replace("\\", "/"),
+                local_file.read_bytes(),
+                branch_name,
+                f"fix: update {relative_path}",
+            )
+            committed_files.append(relative_path)
+        if not committed_files:
+            raise ValueError("No generated files were available to commit")
         pr_url = github_client.create_pull_request(
             owner=owner,
             repo=repo,

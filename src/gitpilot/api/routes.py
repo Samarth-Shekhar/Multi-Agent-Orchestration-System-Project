@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import sys
 import threading
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -15,8 +17,9 @@ from gitpilot.services.run_store import InMemoryRunStore, RunStatus
 from gitpilot.workflow import export_mermaid, run_workflow
 
 router = APIRouter()
-run_store = InMemoryRunStore()
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+RUN_HISTORY_PATH = None if "pytest" in sys.modules else PROJECT_ROOT / ".gitpilot-data" / "runs.json"
+run_store = InMemoryRunStore(RUN_HISTORY_PATH)
 
 
 # ── Request / Response models ──────────────────────────────────────
@@ -42,6 +45,8 @@ class RunDetail(BaseModel):
     status: str
     state: dict | None = None
     events: list[dict] = []
+    created_at: float = 0
+    completed_at: float | None = None
 
 
 class IssuePreview(BaseModel):
@@ -90,6 +95,53 @@ def create_run(req: RunRequest):
     )
 
 
+@router.get("/api/v1/runs")
+def list_runs(limit: int = 50):
+    """Return persisted workflow history, newest first."""
+    return {"runs": [_serialize_run(run) for run in run_store.list_runs(limit)]}
+
+
+@router.get("/api/v1/repositories")
+def list_repositories():
+    """Aggregate workflow history by repository."""
+    repositories: dict[str, dict] = {}
+    for run in run_store.list_runs(1000):
+        item = repositories.setdefault(
+            run.repository_url,
+            {"repository_url": run.repository_url, "runs": 0, "successes": 0, "issues": set(), "last_run": 0},
+        )
+        item["runs"] += 1
+        item["successes"] += int(run.status == RunStatus.SUCCESS)
+        item["issues"].add(run.issue_number)
+        item["last_run"] = max(item["last_run"], run.created_at)
+        if run.state:
+            issue = run.state.get("issue", {})
+            item["project_summary"] = run.state.get("plan", {}).get("root_cause", "")
+            item["last_issue_title"] = issue.get("title", "")
+            item["changed_files"] = run.state.get("changed_files", [])
+    result = []
+    for item in repositories.values():
+        item["issues"] = sorted(item["issues"])
+        result.append(item)
+    return {"repositories": sorted(result, key=lambda item: item["last_run"], reverse=True)}
+
+
+def _serialize_run(run) -> dict:
+    duration = (run.completed_at or time.time()) - run.created_at
+    return {
+        "run_id": run.run_id,
+        "repository_url": run.repository_url,
+        "issue_number": run.issue_number,
+        "dry_run": run.dry_run,
+        "status": run.status.value,
+        "state": run.state,
+        "events": run.events,
+        "created_at": run.created_at,
+        "completed_at": run.completed_at,
+        "duration_seconds": round(duration, 2),
+    }
+
+
 @router.get("/api/v1/runs/{run_id}", response_model=RunDetail)
 def get_run(run_id: str):
     """Get run details."""
@@ -104,6 +156,8 @@ def get_run(run_id: str):
         status=run.status.value,
         state=run.state if run.state else None,
         events=run.events,
+        created_at=run.created_at,
+        completed_at=run.completed_at,
     )
 
 
@@ -153,6 +207,7 @@ def _execute_run(run_id: str, repo_url: str, issue_number: int, dry_run: bool):
             ollama_base_url=settings.ollama_base_url,
             openai_api_key=settings.openai_api_key,
             openai_base_url=settings.openai_base_url,
+            timeout_seconds=settings.llm_timeout_seconds,
         )
 
         # Public repositories can be read without a token. Each workflow gets
@@ -186,6 +241,9 @@ def _execute_run(run_id: str, repo_url: str, issue_number: int, dry_run: bool):
             dry_run=dry_run,
             max_attempts=settings.max_repair_attempts,
             repo_path=str(repo_path),
+            event_callback=lambda node, status: run_store.add_event(
+                run_id, {"node": node, "status": status}
+            ),
         )
 
         # Update run store

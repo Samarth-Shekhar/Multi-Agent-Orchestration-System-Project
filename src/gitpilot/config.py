@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # LLM
     llm_provider: str = Field(default="mock", description="ollama | openai | mock")
     llm_model: str = Field(default="mock-model")
+    llm_timeout_seconds: float = Field(default=600.0, gt=0)
     ollama_base_url: str = Field(default="http://localhost:11434")
     openai_api_key: str = Field(default="")
     openai_base_url: str = Field(default="https://api.openai.com/v1")

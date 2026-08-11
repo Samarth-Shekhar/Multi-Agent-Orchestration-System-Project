@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import json
 import logging
 
 from pydantic import BaseModel, field_validator
 
 from gitpilot.errors import describe_error
+from gitpilot.llm.json_response import parse_json_response
 from gitpilot.security import sanitize_for_prompt
 from gitpilot.state import AgentState
 
@@ -24,6 +24,39 @@ class PlanModel(BaseModel):
     test_strategy: list[str]
     risk_level: str = "low"
     complexity: str = "simple"
+
+    @field_validator(
+        "files_to_modify",
+        "files_to_add",
+        "implementation_steps",
+        "test_strategy",
+        mode="before",
+    )
+    @classmethod
+    def normalize_string_lists(cls, value):
+        """Accept the small object wrappers commonly emitted by local models."""
+        if not isinstance(value, list):
+            return value
+
+        preferred_keys = ("path", "file", "step", "test_case", "description", "name")
+        normalized = []
+        for item in value:
+            if isinstance(item, str):
+                normalized.append(item)
+                continue
+            if isinstance(item, dict):
+                text = next(
+                    (
+                        item[key]
+                        for key in preferred_keys
+                        if isinstance(item.get(key), str) and item[key].strip()
+                    ),
+                    None,
+                )
+                normalized.append(text if text is not None else str(item))
+                continue
+            normalized.append(str(item))
+        return normalized
 
     @field_validator("risk_level")
     @classmethod
@@ -46,11 +79,14 @@ then produce a JSON plan with these exact fields:
 - root_cause: why the issue exists
 - files_to_modify: list of file paths to change
 - files_to_add: list of new file paths (if any)
-- implementation_steps: ordered list of changes
-- test_strategy: list of test cases needed
+- implementation_steps: ordered list of change strings (strings only, not objects)
+- test_strategy: list of test-case strings (strings only, not objects)
 - risk_level: low | medium | high
 - complexity: simple | complex (use complex for multi-file refactors or architectural changes)
 
+Keep the plan compact: at most 5 implementation steps and 4 test cases, with each
+string limited to one concise sentence.
+JSON-escape every backslash inside string values (for example, write \\ as \\\\).
 Return ONLY valid JSON."""
 
 
@@ -84,7 +120,7 @@ def planner(state: AgentState, *, llm, **kwargs) -> dict:
             "execution_log": log,
         }
     except Exception as e:
-        message = describe_error(e, "OpenAI")
+        message = describe_error(e, llm.name())
         logger.error("Planner failed: %s", message)
         log.append(f"planner: failed - {message}")
         return {
@@ -96,9 +132,4 @@ def planner(state: AgentState, *, llm, **kwargs) -> dict:
 
 def _parse_plan(content: str) -> dict:
     """Extract JSON from LLM response, handling markdown code fences."""
-    content = content.strip()
-    if content.startswith("```"):
-        lines = content.split("\n")
-        lines = [line for line in lines if not line.startswith("```")]
-        content = "\n".join(lines)
-    return json.loads(content)
+    return parse_json_response(content)

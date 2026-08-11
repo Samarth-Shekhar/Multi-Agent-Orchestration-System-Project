@@ -16,7 +16,9 @@ from gitpilot.agents import (
 from gitpilot.agents import (
     test_writer as agent_test_writer,
 )
+from gitpilot.agents.code_writer import _parse_generated_files
 from gitpilot.github.client import MockGitHubClient
+from gitpilot.llm.base import LLMResponse
 from gitpilot.llm.mock import MockLLMProvider
 
 
@@ -46,6 +48,37 @@ def test_planner_agent():
     assert "plan" in res
     assert res["complexity"] in ("simple", "complex")
     assert res["plan"]["summary"] is not None
+
+
+def test_planner_normalizes_object_wrapped_lists_from_local_models():
+    class ObjectListLLM:
+        def name(self):
+            return "ollama:test"
+
+        def generate(self, prompt, system=""):
+            return LLMResponse(
+                model="test",
+                content='''{
+                    "summary": "Add Storybook",
+                    "root_cause": "Storybook is missing",
+                    "files_to_modify": [{"path": "package.json"}],
+                    "files_to_add": [{"file": ".storybook/main.js"}],
+                    "implementation_steps": [{"step": "Install Storybook"}],
+                    "test_strategy": [{"test_case": "Verify Storybook starts"}],
+                    "risk_level": "low",
+                    "complexity": "simple"
+                }''',
+            )
+
+    result = planner(
+        {"issue": {"title": "Add Storybook"}, "execution_log": []},
+        llm=ObjectListLLM(),
+    )
+
+    assert result["plan"]["files_to_modify"] == ["package.json"]
+    assert result["plan"]["files_to_add"] == [".storybook/main.js"]
+    assert result["plan"]["implementation_steps"] == ["Install Storybook"]
+    assert result["plan"]["test_strategy"] == ["Verify Storybook starts"]
 
 
 def test_mock_plans_are_issue_specific():
@@ -89,6 +122,16 @@ def test_code_writer_agent():
     }
     res = code_writer(state, llm=llm)
     assert "patch" in res
+
+
+def test_code_writer_repairs_unescaped_code_backslashes():
+    files = _parse_generated_files(
+        r'{"files":[{"path":"config.js","content":"const pattern = /\.stories\.js$/;"}]}'
+    )
+
+    assert files == [
+        {"path": "config.js", "content": r"const pattern = /\.stories\.js$/;"}
+    ]
 
 
 def test_test_writer_agent():

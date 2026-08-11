@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 import stat
 import zipfile
@@ -131,6 +132,25 @@ class GitHubClient:
         )
         resp.raise_for_status()
         return resp.json()["html_url"]
+
+    def upsert_file(
+        self, owner: str, repo: str, path: str, content: bytes, branch: str, message: str
+    ) -> None:
+        """Create or update one repository file on a branch through GitHub Contents API."""
+        existing = self._client.get(
+            f"/repos/{owner}/{repo}/contents/{path}", params={"ref": branch}
+        )
+        payload = {
+            "message": message,
+            "content": base64.b64encode(content).decode("ascii"),
+            "branch": branch,
+        }
+        if existing.status_code == 200:
+            payload["sha"] = existing.json()["sha"]
+        elif existing.status_code != 404:
+            existing.raise_for_status()
+        resp = self._client.put(f"/repos/{owner}/{repo}/contents/{path}", json=payload)
+        resp.raise_for_status()
 
     @staticmethod
     def parse_repo_url(url: str) -> tuple[str, str]:

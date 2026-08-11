@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from functools import partial
 from typing import Literal
 
@@ -45,12 +46,8 @@ def route_by_complexity(state: AgentState) -> Literal["research_agent", "code_wr
     """Route based on plan complexity: complex issues go through research first."""
     if state.get("status") == "failed":
         return "__end__"
-    complexity = state.get("complexity", "simple")
-    if complexity == "complex":
-        logger.info("Routing: complex → research_agent")
-        return "research_agent"
-    logger.info("Routing: simple → code_writer")
-    return "code_writer"
+    logger.info("Routing: planner → research_agent")
+    return "research_agent"
 
 
 def route_after_tests(state: AgentState) -> Literal["reviewer", "repair_agent", "__end__"]:
@@ -106,6 +103,7 @@ def build_workflow(
     llm,
     github_client,
     dry_run: bool = True,
+    event_callback: Callable[[str, str], None] | None = None,
 ) -> StateGraph:
     """Build and compile the LangGraph StateGraph.
 
@@ -113,15 +111,31 @@ def build_workflow(
     """
 
     # Create node functions with injected dependencies
-    _issue_loader = partial(issue_loader, github_client=github_client)
-    _code_reader = partial(code_reader, llm=llm)
-    _planner = partial(planner, llm=llm)
-    _research = partial(research_agent, llm=llm)
-    _code_writer = partial(code_writer, llm=llm)
-    _test_writer = partial(test_writer, llm=llm)
-    _reviewer = partial(reviewer, llm=llm)
-    _repair = partial(repair_agent, llm=llm)
-    _pr_opener = partial(pr_opener, github_client=github_client, dry_run=dry_run)
+    def evented(name, function):
+        if event_callback is None:
+            return function
+
+        def wrapped(state):
+            event_callback(name, "running")
+            result = function(state)
+            status = "failed" if result.get("status") == "failed" else "completed"
+            event_callback(name, status)
+            return result
+
+        return wrapped
+
+    _issue_loader = evented("issue_loader", partial(issue_loader, github_client=github_client))
+    _code_reader = evented("code_reader", partial(code_reader, llm=llm))
+    _planner = evented("planner", partial(planner, llm=llm))
+    _research = evented("research_agent", partial(research_agent, llm=llm))
+    _code_writer = evented("code_writer", partial(code_writer, llm=llm))
+    _test_writer = evented("test_writer", partial(test_writer, llm=llm))
+    _test_runner = evented("test_runner", test_runner)
+    _reviewer = evented("reviewer", partial(reviewer, llm=llm))
+    _repair = evented("repair_agent", partial(repair_agent, llm=llm))
+    _pr_opener = evented(
+        "pr_opener", partial(pr_opener, github_client=github_client, dry_run=dry_run)
+    )
 
     # Define the graph
     graph = StateGraph(AgentState)
@@ -133,7 +147,7 @@ def build_workflow(
     graph.add_node("research_agent", _research)
     graph.add_node("code_writer", _code_writer)
     graph.add_node("test_writer", _test_writer)
-    graph.add_node("test_runner", test_runner)
+    graph.add_node("test_runner", _test_runner)
     graph.add_node("reviewer", _reviewer)
     graph.add_node("repair_agent", _repair)
     graph.add_node("pr_opener", _pr_opener)
@@ -215,6 +229,7 @@ def run_workflow(
     dry_run: bool = True,
     max_attempts: int = 3,
     repo_path: str = "",
+    event_callback: Callable[[str, str], None] | None = None,
 ) -> AgentState:
     """Execute the full workflow and return final state."""
     start = time.time()
@@ -223,6 +238,7 @@ def run_workflow(
         llm=llm,
         github_client=github_client,
         dry_run=dry_run,
+        event_callback=event_callback,
     )
 
     initial_state: AgentState = {
@@ -263,7 +279,10 @@ def run_workflow(
         result["execution_log"] = result.get("execution_log", [])
         result["execution_log"].append(f"workflow: completed in {elapsed:.2f}s")
 
-        if result.get("status") != "failed":
+        tests = result.get("test_results", {})
+        if result.get("status") == "failed" or (tests and not tests.get("passed", False)):
+            result["status"] = "failed"
+        else:
             result["status"] = "success"
 
         logger.info("Workflow completed in %.2fs with status=%s", elapsed, result["status"])

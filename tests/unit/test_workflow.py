@@ -22,7 +22,7 @@ def test_build_workflow_compilation():
 
 def test_route_by_complexity_simple():
     state = {"complexity": "simple"}
-    assert route_by_complexity(state) == "code_writer"
+    assert route_by_complexity(state) == "research_agent"
 
 
 def test_fatal_agent_failure_stops_pipeline():

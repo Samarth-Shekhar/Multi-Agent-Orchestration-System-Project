@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
 from threading import Lock
 from typing import Protocol
 
@@ -42,11 +44,40 @@ class RunStoreProtocol(Protocol):
 
 
 class InMemoryRunStore:
-    """Thread-safe in-memory run store."""
+    """Thread-safe run store persisted to a small project-local JSON file."""
 
-    def __init__(self):
+    def __init__(self, persistence_path: Path | None = None):
         self._runs: dict[str, WorkflowRun] = {}
         self._lock = Lock()
+        self._persistence_path = persistence_path
+        self._load()
+
+    def _load(self) -> None:
+        if not self._persistence_path or not self._persistence_path.exists():
+            return
+        try:
+            payload = json.loads(self._persistence_path.read_text(encoding="utf-8"))
+            for item in payload:
+                item["status"] = RunStatus(item["status"])
+                run = WorkflowRun(**item)
+                self._runs[run.run_id] = run
+        except (OSError, ValueError, TypeError):
+            self._runs = {}
+
+    def _save(self) -> None:
+        if not self._persistence_path:
+            return
+        self._persistence_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = [
+            {
+                **run.__dict__,
+                "status": run.status.value,
+            }
+            for run in self._runs.values()
+        ]
+        temporary = self._persistence_path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        temporary.replace(self._persistence_path)
 
     def create(self, repo_url: str, issue_number: int, dry_run: bool) -> WorkflowRun:
         run = WorkflowRun(
@@ -57,6 +88,7 @@ class InMemoryRunStore:
         )
         with self._lock:
             self._runs[run.run_id] = run
+            self._save()
         return run
 
     def get(self, run_id: str) -> WorkflowRun | None:
@@ -69,12 +101,16 @@ class InMemoryRunStore:
             if run:
                 for k, v in kwargs.items():
                     setattr(run, k, v)
+                if kwargs.get("status") in {RunStatus.SUCCESS, RunStatus.FAILED}:
+                    run.completed_at = time.time()
+                self._save()
 
     def add_event(self, run_id: str, event: dict) -> None:
         with self._lock:
             run = self._runs.get(run_id)
             if run:
                 run.events.append({"timestamp": time.time(), **event})
+                self._save()
 
     def list_runs(self, limit: int = 20) -> list[WorkflowRun]:
         with self._lock:

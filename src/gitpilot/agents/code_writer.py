@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 
 from gitpilot.errors import describe_error
+from gitpilot.llm.json_response import parse_json_response
 from gitpilot.security import sanitize_for_prompt, validate_file_operation
 from gitpilot.state import AgentState
 
@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 CODE_WRITER_SYSTEM = """You are a code implementation agent. Based on the plan and context,
 generate the exact complete content for every modified or new file. Return ONLY valid JSON:
 {"files": [{"path": "relative/path.ext", "content": "complete file content"}]}
+JSON-escape every backslash inside file content (for example, write \\ as \\\\).
 Do not modify unrelated files and never use absolute paths or paths containing '..'."""
 
 
@@ -69,7 +70,7 @@ def code_writer(state: AgentState, *, llm, **kwargs) -> dict:
             "execution_log": log,
         }
     except Exception as e:
-        message = describe_error(e, "OpenAI")
+        message = describe_error(e, llm.name())
         logger.error("Code writer failed: %s", message)
         log.append(f"code_writer: failed - {message}")
         return {
@@ -83,11 +84,7 @@ def code_writer(state: AgentState, *, llm, **kwargs) -> dict:
 
 def _parse_generated_files(content: str) -> list[dict[str, str]]:
     """Parse the LLM's path-to-content response."""
-    cleaned = content.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.splitlines()
-        cleaned = "\n".join(line for line in lines if not line.startswith("```"))
-    payload = json.loads(cleaned)
+    payload = parse_json_response(content)
     files = payload.get("files", [])
     if not isinstance(files, list) or not files:
         raise ValueError("Code model returned no files")
@@ -99,8 +96,6 @@ def _parse_generated_files(content: str) -> list[dict[str, str]]:
             raise ValueError(f"Missing content for {item.get('path', 'unknown file')}")
         parsed.append({"path": item["path"], "content": item["content"]})
     return parsed
-
-
 def _format_patch_preview(files: list[dict[str, str]]) -> str:
     return "\n\n".join(f"# FILE: {item['path']}\n{item['content']}" for item in files)
 

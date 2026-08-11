@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import logging
 
 from gitpilot.errors import describe_error
+from gitpilot.llm.json_response import parse_json_response
 from gitpilot.security import sanitize_for_prompt
 from gitpilot.state import AgentState
 
@@ -75,14 +75,9 @@ def reviewer(state: AgentState, *, llm, **kwargs) -> dict:
 
 def _parse_review(content: str) -> dict:
     """Extract review JSON from response."""
-    content = content.strip()
-    if content.startswith("```"):
-        lines = content.split("\n")
-        lines = [line for line in lines if not line.startswith("```")]
-        content = "\n".join(lines)
     try:
-        return json.loads(content)
-    except json.JSONDecodeError:
+        return parse_json_response(content)
+    except ValueError:
         # If LLM didn't return valid JSON, interpret text
         approved = "approved" in content.lower() and "not approved" not in content.lower()
         return {

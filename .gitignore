@@ -39,3 +39,5 @@ workspaces/
 temp_repos/
 agent_workspaces/
 *.log
+.tools/
+.gitpilot-data/

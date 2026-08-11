@@ -8,10 +8,17 @@ from gitpilot.llm.base import BaseLLMProvider, LLMResponse
 
 
 class OpenAICompatibleProvider(BaseLLMProvider):
-    def __init__(self, model: str, api_key: str, base_url: str = "https://api.openai.com/v1"):
+    def __init__(
+        self,
+        model: str,
+        api_key: str,
+        base_url: str = "https://api.openai.com/v1",
+        timeout_seconds: float = 600.0,
+    ):
         self._model = model
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
+        self._timeout_seconds = timeout_seconds
 
     def name(self) -> str:
         return f"openai:{self._model}"
@@ -28,7 +35,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 "instructions": system,
                 "input": prompt,
             },
-            timeout=120.0,
+            timeout=self._timeout_seconds,
         )
         resp.raise_for_status()
         data = resp.json()
